@@ -525,21 +525,15 @@ KDisplayManager::shutdown(KWorkSpace::ShutdownType shutdownType,
             return;
 
         if (DMType == NewGDM || DMType == NoDM || DMType == LightDM) {
-            // systemd supports only 2 modes:
-            // * interactive = true: brings up a PolicyKit prompt if other sessions are active
-            // * interactive = false: rejects the shutdown if other sessions are active
-            // There are no schedule or force modes.
-            // We try to map our 4 shutdown modes in the sanest way.
-            bool interactive = (shutdownMode == KWorkSpace::ShutdownModeInteractive
-                                || shutdownMode == KWorkSpace::ShutdownModeForceNow);
-            QDBusReply<QString> check = SystemdManager().call(QLatin1String(
-                    shutdownType == KWorkSpace::ShutdownTypeReboot ? "Reboot" : "PowerOff"), interactive);
-            if (!check.isValid()) {
-                // FIXME: entirely ignoring shutdownMode
-                CKManager().call(QLatin1String(
-                        shutdownType == KWorkSpace::ShutdownTypeReboot ? "Restart" : "Stop"));
-                // if even CKManager call fails, there is nothing more to be done
-            }
+            // Workaround for LiMux release 6.0
+            // write the user request to a file
+            // delegate shutdown to "limux schedule shutdown for logind"
+            QString uid = KUserId::currentUserId().toString();
+            QFile flag_file("/run/user/" + uid + "/shutdown_request");
+            if (! flag_file.open(QIODevice::WriteOnly | QIODevice::Text))
+                return;
+            QTextStream handle(&flag_file);
+            handle << (shutdownType == KWorkSpace::ShutdownTypeReboot ? "reboot" : "poweroff");
             return;
         }
 
